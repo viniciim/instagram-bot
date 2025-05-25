@@ -5,51 +5,46 @@ import os
 app = FastAPI()
 
 VERIFY_TOKEN = os.getenv('VERIFY_TOKEN', 'vknoprecinho')
-ACCESS_TOKEN = os.getenv('ACCESS_TOKEN', 'EAAYgKxphH8ABOZBl2TLbnbCwgM8ZARvioRZBFpMhmVpmQPbSucwtJRW9PjambVZANRi7k6qT9no61gGY3vo2Ga8AWGF108g12G6gslyZCHxLJDlz6CI5yGpkKgdGq0BiG0eGYX3uRMWtRcZAuW12ltm4QdVKTiLTq5zYXtx9ZAGOWgZBJJOoGkTD8vDt5rg58vjqdAhUJtaFFeNlqAZDZD')
-
 
 @app.get("/webhook")
-async def verify(request: Request):
-    """
-    Verificação do webhook (GET)
-    """
-    params = dict(request.query_params)
-    mode = params.get('hub.mode')
-    token = params.get('hub.verify_token')
-    challenge = params.get('hub.challenge')
+async def verify_webhook(request: Request):
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
 
-    if mode == 'subscribe' and token == VERIFY_TOKEN:
-        print('WEBHOOK VERIFICADO ✅')
-        return int(challenge)
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        print("✅ Webhook verificado com sucesso!")
+        return PlainTextResponse(content=challenge)
     else:
-        print('FALHA NA VERIFICAÇÃO ❌')
-        return {"error": "Verificação falhou"}
-
+        print("❌ Verificação falhou.")
+        return JSONResponse(content={"error": "Verificação falhou"}, status_code=403)
 
 @app.post("/webhook")
-async def webhook_listener(payload: dict):
-    """
-    Recebe os eventos do Instagram (POST)
-    """
-    print("🔔 Evento recebido:")
-    print(payload)
+async def receive_webhook(request: Request):
+    data = await request.json()
+    print("📥 Dados recebidos no webhook:")
+    print(data)
 
-    # Aqui você pode tratar o evento, por exemplo pegar comentário:
     try:
-        entry = payload['entry'][0]
-        changes = entry.get('changes', [])
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                field = change.get("field")
+                if field == "feed":
+                    value = change.get("value", {})
+                    if value.get("item") == "comment":
+                        comment_text = value.get("message")
+                        commenter_id = value.get("from", {}).get("id")
+                        post_id = value.get("post_id")
 
-        for change in changes:
-            if change['field'] == 'comments':
-                comment = change['value']['text']
-                username = change['value']['from']['username']
-                print(f"🗨️ Novo comentário de {username}: {comment}")
+                        print(f"💬 Novo comentário no post {post_id}")
+                        print(f"👤 ID do usuário: {commenter_id}")
+                        print(f"✍️ Comentário: {comment_text}")
 
     except Exception as e:
-        print(f"Erro ao tratar o webhook: {e}")
+        print(f"❌ Erro ao processar webhook: {e}")
 
-    return {"status": "received"}
+    return JSONResponse(content={"status": "recebido"}, status_code=200)
 
-
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=True)
+@app.get("/")
+def root():
+    return {"status": "🔥 Webhook rodando no Render com sucesso!"}
