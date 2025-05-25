@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+import requests
 import uvicorn
 import os
 
